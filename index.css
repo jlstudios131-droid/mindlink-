@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom background and text color */
+body {
+  @apply bg-gradient-to-br from-[#fbfdff] to-[#f8f7ff] text-slate-800;
+}
