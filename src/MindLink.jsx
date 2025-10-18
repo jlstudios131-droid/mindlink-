@@ -9,7 +9,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-
+import "./index.css";
 /* ----------------------------- THEME / CONSTANTS --------------------------- */
 
 const THEME = {
