@@ -1,479 +1,424 @@
 // MindLink.jsx
-// Single-file React prototype (Vite + Tailwind + Framer Motion)
-// - Pure English JavaScript
-// - Mobile-first responsive layout
-// - Mock local API (in-memory)
-// - Simple Insight Engine with local storage (guarded for SSR)
-// - Subtle Framer Motion animations
-// - Comments and pseudocode in English
+// Advanced MindLink single-file app (Vite + Tailwind + Framer Motion)
+// - Single file prototype, pure English JavaScript
+// - Login / Register -> Rich addictive feed -> DM + Community chat
+// - Unique palette, micro-interactions, engagement loops, monetization UI
+// - Mock local API and localStorage persistence (safe guarded)
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-/* ----------------------------- THEME / CONSTANTS --------------------------- */
+/* ========================= THEME / UNIQUE IDENTITY =========================
+   Palette: electric-menthol (soft mint + deep indigo + luminous lilac)
+   Purpose: Clean, futuristic, yet warm and slightly "addictive" micro-animations
+   ==========================================================================*/
 
 const THEME = {
-  colors: {
-    mentalBlue: "bg-[#e8f0ff]",
-    card: "bg-white/80",
+  palette: {
+    bg: "bg-gradient-to-br from-[#f8feff] via-[#f2f8ff] to-[#fbf7ff]",
+    card: "bg-white/92",
+    accent: "text-[#5b3cff]",
+    mint: "bg-[#baf7e6]",
+    deep: "#2b1152",
+    glow: "shadow-[0_8px_30px_rgba(91,60,255,0.08)]",
   },
 };
 
-/* ----------------------------- MOCK LOCAL API ------------------------------ */
+/* ========================= SAFE STORAGE HELPERS ============================ */
 
-const mockDB = (() => {
-  let posts = [
-    {
-      id: 1,
-      author: "Ava",
-      avatar: "A",
-      content: "Trying mindful coding — short breaks helped me focus.",
-      tags: ["mindful", "productivity"],
-      mood: "calm",
-      likes: 4,
-      createdAt: Date.now() - 1000 * 60 * 60 * 6,
-    },
-    {
-      id: 2,
-      author: "Rui",
-      avatar: "R",
-      content: "Idea: decentralized knowledge nodes for neighborhoods.",
-      tags: ["ideas", "sustainability"],
-      mood: "energetic",
-      likes: 8,
-      createdAt: Date.now() - 1000 * 60 * 60 * 24,
-    },
-  ];
-
-  let users = [
-    { id: "u1", name: "You", avatar: "Y", interests: ["AI", "Sustainability"], moodScore: 0.6 },
-    { id: "u2", name: "Ava", avatar: "A", interests: ["Mindfulness", "Design"], moodScore: 0.8 },
-    { id: "u3", name: "Rui", avatar: "R", interests: ["Systems", "Energy"], moodScore: 0.3 },
-  ];
-
-  return {
-    fetchPosts: () => Promise.resolve(posts.slice().sort((a, b) => b.createdAt - a.createdAt)),
-    createPost: (post) => {
-      const newPost = { ...post, id: Date.now(), likes: 0, createdAt: Date.now() };
-      posts = [newPost, ...posts];
-      return Promise.resolve(newPost);
-    },
-    likePost: (id) => {
-      posts = posts.map((p) => (p.id === id ? { ...p, likes: p.likes + 1 } : p));
-      return Promise.resolve(true);
-    },
-    fetchUsers: () => Promise.resolve(users),
-    sendMessage: (from, to, body) => Promise.resolve({ id: Date.now(), from, to, body, createdAt: Date.now() }),
-  };
-})();
-
-/* ----------------------------- HELPERS ------------------------------------ */
-
-const timeAgo = (timestamp) => {
-  const s = Math.floor((Date.now() - timestamp) / 1000);
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}d`;
-};
-
-const safeLocalStorageGet = (key, fallback) => {
+const safeGet = (k, fallback) => {
   try {
-    if (typeof window === "undefined" || !window.localStorage) return fallback;
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
+    if (typeof window === "undefined") return fallback;
+    const v = localStorage.getItem(k);
+    return v ? JSON.parse(v) : fallback;
   } catch {
     return fallback;
   }
 };
-
-const safeLocalStorageSet = (key, value) => {
+const safeSet = (k, v) => {
   try {
-    if (typeof window === "undefined" || !window.localStorage) return;
-    localStorage.setItem(key, JSON.stringify(value));
+    if (typeof window === "undefined") return;
+    localStorage.setItem(k, JSON.stringify(v));
   } catch {}
 };
 
-/* ----------------------------- INSIGHT ENGINE ----------------------------- */
+/* ============================ MOCK BACKEND =================================
+   - in-memory DB for posts, users, communities, messages
+   - supports login/create-user, posts, likes, boost (monetization), messages
+   ========================================================================== */
 
-/**
- * Lightweight Insight Engine:
- * - stores tag counts and mood signals locally
- * - suggests frequent topics
- * - infers a simple mood value 0..1
- */
+const MockAPI = (() => {
+  let users = safeGet("ml_users", [
+    { id: "u_you", username: "you", name: "You", avatar: "Y", premium: false, streak: 2 },
+    { id: "u_ava", username: "ava", name: "Ava", avatar: "A", premium: true, streak: 8 },
+    { id: "u_rui", username: "rui", name: "Rui", avatar: "R", premium: false, streak: 1 },
+  ]);
+  let posts = safeGet("ml_posts", [
+    {
+      id: "p1",
+      authorId: "u_ava",
+      authorName: "Ava",
+      avatar: "A",
+      title: "Micro-breaks for deep focus",
+      body: "I tried 5-min micro-breaks and my throughput doubled. Ask me how I schedule them.",
+      tags: ["focus", "mindful"],
+      mood: "calm",
+      likes: 24,
+      boosts: 1,
+      createdAt: Date.now() - 1000 * 60 * 60 * 4,
+    },
+    {
+      id: "p2",
+      authorId: "u_rui",
+      authorName: "Rui",
+      avatar: "R",
+      title: "Local knowledge nodes idea",
+      body: "What if communities run lightweight offline-first knowledge nodes?",
+      tags: ["sustainability", "infrastructure"],
+      mood: "energetic",
+      likes: 48,
+      boosts: 0,
+      createdAt: Date.now() - 1000 * 60 * 60 * 24,
+    },
+  ]);
+  let communities = safeGet("ml_comms", [
+    { id: "c1", slug: "mindful-tech", name: "Mindful Tech", members: ["u_ava", "u_you"], posts: ["p1"] },
+    { id: "c2", slug: "green-systems", name: "Green Systems", members: ["u_rui"], posts: ["p2"] },
+  ]);
+  let messages = safeGet("ml_msgs", [
+    { id: "m1", from: "u_ava", to: "u_you", body: "Welcome! Try the boost on your next post 😉", createdAt: Date.now() - 1000 * 60 * 40 },
+  ]);
 
-const InsightEngine = (() => {
-  const KEY = "mindlink_insights_v1";
-  const initial = { tagCounts: {}, moodSignals: [] };
+  const persist = () => {
+    safeSet("ml_users", users);
+    safeSet("ml_posts", posts);
+    safeSet("ml_comms", communities);
+    safeSet("ml_msgs", messages);
+  };
 
-  let state = safeLocalStorageGet(KEY, initial);
+  return {
+    // auth (very simple)
+    login: (username) => {
+      const u = users.find((x) => x.username === username);
+      if (u) return Promise.resolve(u);
+      return Promise.reject(new Error("User not found"));
+    },
+    register: ({ username, name }) => {
+      if (users.find((x) => x.username === username)) return Promise.reject(new Error("Username taken"));
+      const id = "u_" + Date.now();
+      const newUser = { id, username, name: name || username, avatar: (name || username)[0].toUpperCase(), premium: false, streak: 0 };
+      users.push(newUser);
+      persist();
+      return Promise.resolve(newUser);
+    },
 
-  const persist = () => safeLocalStorageSet(KEY, state);
+    fetchFeed: (viewerId) => {
+      // simple ranking algorithm: boosted + recent + likes + relevance (if tags match viewer interests)
+      const viewer = users.find((u) => u.id === viewerId) || {};
+      // compute score
+      const scored = posts.map((p) => {
+        const ageHours = (Date.now() - p.createdAt) / (1000 * 60 * 60);
+        const recency = Math.max(0, 48 - ageHours); // prefer <48h
+        const score = (p.boosts * 20 + p.likes * 1.5 + recency * 2);
+        return { ...p, score };
+      });
+      // shuffle similar scores slightly then sort
+      scored.sort((a, b) => b.score - a.score || b.createdAt - a.createdAt);
+      return Promise.resolve(scored);
+    },
+
+    createPost: (payload) => {
+      const id = "p_" + Date.now();
+      const newP = { ...payload, id, likes: 0, boosts: 0, createdAt: Date.now() };
+      posts.unshift(newP);
+      persist();
+      return Promise.resolve(newP);
+    },
+
+    likePost: (postId) => {
+      posts = posts.map((p) => (p.id === postId ? { ...p, likes: p.likes + 1 } : p));
+      persist();
+      return Promise.resolve(true);
+    },
+
+    boostPost: (postId, byUserId) => {
+      // monetize simulation: boosting increases boosts counter
+      posts = posts.map((p) => (p.id === postId ? { ...p, boosts: (p.boosts || 0) + 1 } : p));
+      persist();
+      return Promise.resolve(true);
+    },
+
+    fetchCommunities: () => Promise.resolve(communities.slice()),
+
+    createCommunity: ({ name, slug, creatorId }) => {
+      const id = "c_" + Date.now();
+      const newC = { id, name, slug, members: [creatorId], posts: [] };
+      communities.push(newC);
+      persist();
+      return Promise.resolve(newC);
+    },
+
+    fetchMessagesFor: (userId) => {
+      // return messages where user is from or to (simple)
+      const ms = messages.filter((m) => m.to === userId || m.from === userId).slice();
+      return Promise.resolve(ms);
+    },
+
+    sendMessage: ({ from, to, body }) => {
+      const id = "m_" + Date.now();
+      const m = { id, from, to, body, createdAt: Date.now() };
+      messages.push(m);
+      persist();
+      return Promise.resolve(m);
+    },
+
+    fetchUserById: (id) => Promise.resolve(users.find((u) => u.id === id)),
+    fetchUserByUsername: (username) => Promise.resolve(users.find((u) => u.username === username)),
+    _internalDump: () => ({ users, posts, communities, messages }),
+  };
+})();
+
+/* ============================= INSIGHT & ENGAGEMENT =========================
+   - tracks topics, mood, daily streaks, feature suggestions
+   - suggests boosts/promotions if user is high engagement
+   ========================================================================== */
+
+const Insight = (() => {
+  const KEY = "ml_insight_v2";
+  const initial = safeGet(KEY, { tags: {}, moodSignals: [], lastLogin: null, streakCount: 0 });
+  let state = initial;
+  const persist = () => safeSet(KEY, state);
 
   return {
     recordTags(tags = []) {
-      tags.forEach((t) => {
-        if (!t) return;
-        state.tagCounts[t] = (state.tagCounts[t] || 0) + 1;
-      });
+      tags.forEach((t) => (state.tags[t] = (state.tags[t] || 0) + 1));
       persist();
     },
-    recordMood(value) {
-      if (typeof value !== "number" || Number.isNaN(value)) return;
-      state.moodSignals.push({ v: value, t: Date.now() });
-      if (state.moodSignals.length > 50) state.moodSignals.shift();
+    recordMood(v) {
+      if (typeof v === "number") state.moodSignals.push({ v, t: Date.now() });
+      if (state.moodSignals.length > 100) state.moodSignals.shift();
       persist();
+    },
+    loginHit() {
+      const today = new Date().toDateString();
+      if (state.lastLogin === today) return;
+      if (state.lastLogin === new Date(Date.now() - 24 * 3600 * 1000).toDateString()) state.streakCount = (state.streakCount || 0) + 1;
+      else state.streakCount = 1;
+      state.lastLogin = today;
+      persist();
+    },
+    getStreak() {
+      return state.streakCount || 0;
     },
     suggestTopics(limit = 5) {
-      return Object.entries(state.tagCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, limit)
-        .map((x) => x[0]);
+      return Object.entries(state.tags).sort((a, b) => b[1] - a[1]).slice(0, limit).map((x) => x[0]);
     },
     inferMood() {
       if (!state.moodSignals.length) return 0.5;
       const avg = state.moodSignals.reduce((s, x) => s + x.v, 0) / state.moodSignals.length;
       return Math.max(0, Math.min(1, avg));
     },
-    // For debugging/testing
-    _dump() {
-      return JSON.parse(JSON.stringify(state));
-    },
+    _dump: () => JSON.parse(JSON.stringify(state)),
   };
 })();
 
-/* ----------------------------- ANTECEDENT PSEUDOCODE ----------------------- */
+/* =============================== SMALL HELPERS ============================= */
 
-/*
-PSEUDOCODE: Detect issues before posting
+const timeAgo = (ts) => {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+};
 
-function detectIssue(post):
-  if post.content.trim() === "":
-    return { type: 'empty', message: 'Post is empty. Suggest adding text or audio.' }
-  if countLinks(post.content) > 3:
-    return { type: 'spam', message: 'Possible spam: many links detected.' }
-  if post.content.length > 2000:
-    return { type: 'length', message: 'Post too long — suggest summarizing.' }
-  if user.moodScore < 0.2 and content.isAggressive:
-    return { type: 'flow_block', message: 'Aggressive tone detected. Suggest rephrasing.' }
-  return null
+const uid = () => "id_" + Math.random().toString(36).slice(2, 9);
 
-Use detectIssue before submitting post. Offer gentle guidance, not hard-block.
-*/
+/* =============================== AUTH UI ================================== */
 
-/* ----------------------------- UI COMPONENTS ------------------------------ */
+function AuthScreen({ onLogin }) {
+  const [mode, setMode] = useState("login"); // login | register
+  const [username, setUsername] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
 
-const Icon = ({ children }) => (
-  <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-white/30">
-    {children}
-  </div>
-);
+  const submit = async (e) => {
+    e && e.preventDefault();
+    setError("");
+    try {
+      if (mode === "login") {
+        const u = await MockAPI.login(username.trim());
+        Insight.loginHit();
+        onLogin(u);
+      } else {
+        const u = await MockAPI.register({ username: username.trim(), name: name.trim() || username.trim() });
+        Insight.loginHit();
+        onLogin(u);
+      }
+    } catch (err) {
+      setError(err.message || "Auth error");
+    }
+  };
 
-function Header({ moodValue, onToggle }) {
-  const label = moodValue > 0.6 ? "Energetic" : moodValue < 0.4 ? "Calm" : "Balanced";
   return (
-    <header className={`flex items-center justify-between p-3 sticky top-0 z-20 ${THEME.colors.mentalBlue} backdrop-blur-sm`}>
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-2xl font-bold bg-gradient-to-br from-[#dfe7ff] to-[#eef6ff]">ML</div>
-        <div>
-          <div className="text-sm font-semibold">MindLink</div>
-          <div className="text-xs text-slate-600">The social network that understands and evolves with you.</div>
+    <div className={`min-h-screen flex items-center justify-center ${THEME.palette.bg} p-6`}>
+      <motion.div initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.45 }} className="w-full max-w-xl">
+        <div className={`p-6 rounded-3xl ${THEME.palette.card} ${THEME.palette.glow}`}>
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl font-bold bg-gradient-to-br from-[#e9f7f1] to-[#f3ecff]">ML</div>
+            <div>
+              <div className="text-xl font-bold" style={{ color: THEME.palette.deep }}>MindLink</div>
+              <div className="text-xs text-slate-500">The social network that understands value and attention.</div>
+            </div>
+          </div>
+
+          <form onSubmit={submit} className="mt-6 space-y-3">
+            <div className="text-xs text-slate-600">Start</div>
+
+            <div className="grid grid-cols-1 gap-2">
+              <input placeholder="username" value={username} onChange={(e) => setUsername(e.target.value)} className="px-3 py-2 rounded-lg border text-sm" />
+              {mode === "register" && <input placeholder="display name (optional)" value={name} onChange={(e) => setName(e.target.value)} className="px-3 py-2 rounded-lg border text-sm" />}
+            </div>
+
+            {error && <div className="text-xs text-red-500">{error}</div>}
+
+            <div className="flex items-center gap-3 justify-between mt-3">
+              <button type="submit" className="px-4 py-2 rounded-lg bg-gradient-to-br from-[#5b3cff] to-[#7d55ff] text-white font-semibold">
+                {mode === "login" ? "Login" : "Create account"}
+              </button>
+
+              <button type="button" onClick={() => setMode(mode === "login" ? "register" : "login")} className="text-xs text-slate-600 underline">
+                {mode === "login" ? "Create an account" : "Have an account? Login"}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-6 text-xs text-slate-500">By continuing you accept the prototype terms. This is a demo — no real money is exchanged here.</div>
         </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* =============================== MAIN NAV & UI ============================ */
+
+function MiniBadge({ children }) {
+  return <span className="px-2 py-1 rounded-full text-xs bg-gradient-to-br from-[#eef6ff] to-[#f8f0ff] border">{children}</span>;
+}
+
+function TopBar({ user, onLogout, unreadCount, onToggleCompose }) {
+  return (
+    <header className="flex items-center justify-between p-3 bg-transparent sticky top-0 z-30">
+      <div className="flex items-center gap-3">
+        <div className="text-xl font-bold" style={{ color: THEME.palette.deep }}>MindLink</div>
+        <MiniBadge>v2</MiniBadge>
+        <div className="text-xs text-slate-500 ml-2">Feed</div>
       </div>
 
       <div className="flex items-center gap-3">
-        <button onClick={onToggle} className="px-3 py-1 rounded-lg border border-transparent text-xs font-medium bg-white/90 shadow-sm">
-          Mood: {label}
-        </button>
-        <Icon>⚙️</Icon>
+        <button onClick={onToggleCompose} className="px-3 py-1 rounded-lg bg-white/95 border text-sm">New</button>
+        <div className="relative">
+          <button className="px-3 py-1 rounded-lg bg-white/95 border text-sm">Messages</button>
+          {unreadCount > 0 && <span className="absolute -top-2 -right-2 text-xs bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center">{unreadCount}</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#eef6ff] to-[#f7f3ff] flex items-center justify-center font-bold">{user.avatar}</div>
+          <div className="text-sm">
+            <div className="font-semibold">{user.name}</div>
+            <div className="text-xs text-slate-500">{user.premium ? "Premium" : "Creator"}</div>
+          </div>
+          <button onClick={onLogout} className="px-2 py-1 text-xs text-slate-600">Logout</button>
+        </div>
       </div>
     </header>
   );
 }
 
-function ProfileCard({ user, suggestedTopics }) {
-  return (
-    <aside className="p-4 w-full md:w-72">
-      <motion.div layout initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`p-4 rounded-2xl ${THEME.colors.card} shadow-sm`}>
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold bg-gradient-to-br from-[#eef6ff] to-[#f7f3ff]">{user.avatar}</div>
-          <div>
-            <div className="font-semibold">{user.name}</div>
-            <div className="text-xs text-slate-500">{user.interests.join(" • ")}</div>
-          </div>
-        </div>
+/* ============================== COMPOSER (NOVO POST) ====================== */
 
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <div>
-            <div className="text-sm font-bold">{Math.round(user.moodScore * 100)}</div>
-            <div className="text-xs text-slate-500">Mood</div>
-          </div>
-          <div>
-            <div className="text-sm font-bold">12</div>
-            <div className="text-xs text-slate-500">Connections</div>
-          </div>
-          <div>
-            <div className="text-sm font-bold">42</div>
-            <div className="text-xs text-slate-500">Ideas</div>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <div className="text-xs text-slate-600">Suggested topics</div>
-          <div className="flex gap-2 mt-2 flex-wrap">
-            {suggestedTopics.length ? (
-              suggestedTopics.map((s) => (
-                <span key={s} className="px-2 py-1 text-xs rounded-full border">
-                  {s}
-                </span>
-              ))
-            ) : (
-              <div className="text-xs text-slate-400">No suggestions yet — share something!</div>
-            )}
-          </div>
-        </div>
-      </motion.div>
-    </aside>
-  );
-}
-
-function Composer({ onCreate, suggestedTopics }) {
-  const [content, setContent] = useState("");
+function ComposerRich({ currentUser, onCreate, suggested }) {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
   const [tags, setTags] = useState("");
+  const [boostAs, setBoostAs] = useState(false);
   const [mood, setMood] = useState(0.6);
 
-  const detectIssue = (post) => {
-    if (!post.content || !post.content.trim()) return { type: "empty", message: "The post is empty." };
-    const linkCount = (post.content.match(/https?:\/\/[^\s]+/g) || []).length;
-    if (linkCount > 3) return { type: "spam", message: "Many links detected (possible spam)." };
-    if (post.content.length > 2000) return { type: "length", message: "Post too long — consider summarizing." };
-    if (/\b(hate|idiot|stupid)\b/i.test(post.content) && mood < 0.3) return { type: "flow_block", message: "Aggressive tone detected. Consider rephrasing." };
+  const detectIssue = (payload) => {
+    if (!payload.title.trim() && !payload.body.trim()) return { type: "empty", message: "Post is empty. Add a title or body." };
+    const links = (payload.body.match(/https?:\/\/[^\s]+/g) || []).length;
+    if (links > 5) return { type: "spam", message: "Too many links, possible spam." };
+    if (payload.body.length > 3000) return { type: "length", message: "Too long — consider summarizing." };
     return null;
   };
 
   const submit = async () => {
-    const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
-    const post = { author: "You", avatar: "Y", content, tags: tagList, mood: mood > 0.6 ? "energetic" : mood < 0.4 ? "calm" : "balanced" };
-    const issue = detectIssue(post);
+    const tagList = tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+    const payload = {
+      authorId: currentUser.id,
+      authorName: currentUser.name,
+      avatar: currentUser.avatar,
+      title: title.trim(),
+      body: body.trim(),
+      tags: tagList,
+      mood: mood > 0.6 ? "energetic" : mood < 0.4 ? "calm" : "balanced",
+    };
+    const issue = detectIssue(payload);
     if (issue) {
-      // gentle confirmation for prototype
-      // in production, show a UI modal with better UX
-      const proceed = window.confirm(`${issue.message} Do you want to continue?`);
-      if (!proceed) return;
+      if (!window.confirm(`${issue.message} Continue anyway?`)) return;
     }
-    const created = await mockDB.createPost(post);
+    const created = await MockAPI.createPost(payload);
+    if (boostAs) await MockAPI.boostPost(created.id, currentUser.id);
+    Insight.recordTags(tagList);
+    Insight.recordMood(mood);
     onCreate(created);
-    InsightEngine.recordTags(tagList);
-    InsightEngine.recordMood(mood);
-    setContent("");
+    setTitle("");
+    setBody("");
     setTags("");
+    setBoostAs(false);
     setMood(0.6);
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`p-3 rounded-2xl ${THEME.colors.card} shadow-sm`}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`p-4 rounded-2xl ${THEME.palette.card} ${THEME.palette.glow} mb-3`}>
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-gradient-to-br from-[#eef6ff] to-[#f7f3ff] text-sm font-bold">Y</div>
+        <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gradient-to-br from-[#eafff5] to-[#f3ecff] font-bold">{currentUser.avatar}</div>
         <div className="flex-1">
-          <textarea
-            placeholder="Share an idea, thought or simulated audio..."
-            className="w-full resize-none min-h-[72px] bg-transparent outline-none text-sm"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-          />
-
-          <div className="mt-2 flex items-center gap-2">
-            <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="tags, separated, by, comma" className="text-xs px-2 py-1 rounded-md border w-full md:w-2/3" />
-            <div className="text-xs">Mood</div>
-            <input type="range" min={0} max={1} step={0.1} value={mood} onChange={(e) => setMood(Number(e.target.value))} className="w-24" />
-            <button onClick={submit} className="px-3 py-1 rounded-md bg-gradient-to-br from-[#5b6bff] to-[#7b8dff] text-white text-xs font-semibold">Publish</button>
+          <input placeholder="Title (catchy)" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full text-lg font-semibold bg-transparent outline-none" />
+          <textarea placeholder="Write something that sparks curiosity..." value={body} onChange={(e) => setBody(e.target.value)} className="w-full min-h-[80px] mt-2 bg-transparent outline-none text-sm" />
+          <div className="mt-3 flex items-center gap-2">
+            <input placeholder="tags, comma separated" value={tags} onChange={(e) => setTags(e.target.value)} className="px-2 py-1 rounded-md border text-xs w-1/2" />
+            <div className="flex items-center gap-2 text-xs">
+              <span>Mood</span>
+              <input type="range" min={0} max={1} step={0.1} value={mood} onChange={(e) => setMood(Number(e.target.value))} className="w-28" />
+            </div>
+            <label className="ml-auto text-xs flex items-center gap-2">
+              <input type="checkbox" checked={boostAs} onChange={(e) => setBoostAs(e.target.checked)} /> Boost (Feature)
+            </label>
+            <button onClick={submit} className="px-3 py-1 rounded-lg bg-gradient-to-br from-[#5b3cff] to-[#7d55ff] text-white text-sm">Publish</button>
           </div>
 
-          <div className="mt-3 text-xs text-slate-500">
-            Suggestions: {suggestedTopics.map((t) => <span key={t} className="mr-2">#{t}</span>)}
-          </div>
+          <div className="mt-2 text-xs text-slate-500">Suggested: {suggested.map((s) => <span key={s} className="mr-2">#{s}</span>)}</div>
         </div>
       </div>
     </motion.div>
   );
 }
 
-function PostCard({ post, onLike }) {
-  const safeTags = Array.isArray(post.tags) ? post.tags : [];
+/* ================================== POST ================================== */
+
+function PostCardAdvanced({ p, onLike, onBoost }) {
+  const [liked, setLiked] = useState(false);
   return (
-    <motion.article layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className={`p-4 rounded-2xl ${THEME.colors.card} shadow-sm`}>
+    <motion.article layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className={`p-4 rounded-2xl ${THEME.palette.card} ${THEME.palette.glow}`}>
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-[#f3f6ff] font-bold">{post.avatar}</div>
+        <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gradient-to-br from-[#f0fff8] to-[#f6f0ff] font-bold">{p.avatar}</div>
         <div className="flex-1">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-semibold text-sm">{post.author}</div>
-              <div className="text-xs text-slate-500">{timeAgo(post.createdAt)} • {post.mood}</div>
+              <div className="font-semibold text-sm">{p.title || p.authorName}</div>
+              <div className="text-xs text-slate-500">{p.authorName} • {timeAgo(p.createdAt)} • {p.mood}</div>
             </div>
-            <div className="text-xs text-slate-400">{post.likes} ♥</div>
+            <div className="text-xs text-slate-400">{p.likes} ♥ • {p.boosts}★</div>
           </div>
 
-          <div className="mt-3 text-sm leading-relaxed">{post.content}</div>
-
-          <div className="mt-3 flex items-center gap-2 text-xs">
-            {safeTags.map((t) => <span key={t} className="px-2 py-1 rounded-full border">#{t}</span>)}
-          </div>
-
-          <div className="mt-3 flex items-center gap-2">
-            <button onClick={() => onLike(post.id)} className="text-xs px-2 py-1 rounded-md border">Like</button>
-            <button className="text-xs px-2 py-1 rounded-md border">Share</button>
-            <button className="text-xs px-2 py-1 rounded-md border">Save</button>
-          </div>
-        </div>
-      </div>
-    </motion.article>
-  );
-}
-
-function Feed({ posts, onLike }) {
-  return (
-    <div className="space-y-3">
-      <AnimatePresence>
-        {posts.map((p) => <PostCard key={p.id} post={p} onLike={onLike} />)}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function MindChat({ messages = [], onSend }) {
-  const [text, setText] = useState("");
-
-  const submit = async () => {
-    if (!text.trim()) return;
-    await onSend(text);
-    setText("");
-  };
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`p-3 rounded-2xl ${THEME.colors.card} shadow-sm`}>
-      <div className="text-xs text-slate-600 mb-2">Contextual chat</div>
-      <div className="max-h-36 overflow-y-auto space-y-2 mb-2">
-        {messages.map((m) => (
-          <div key={m.id} className="text-sm">
-            <span className="font-semibold">{m.from}</span>: {m.body}
-          </div>
-        ))}
-      </div>
-
-      <div className="flex gap-2">
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Send a message..." className="flex-1 px-2 py-1 rounded-md border text-sm" />
-        <button onClick={submit} className="px-3 py-1 rounded-md bg-white/90">Send</button>
-      </div>
-    </motion.div>
-  );
-}
-
-/* ----------------------------- MAIN APP ---------------------------------- */
-
-export default function MindLink() {
-  const [posts, setPosts] = useState([]);
-  const [user] = useState({ id: "u1", name: "You", avatar: "Y", interests: ["AI", "Sustainability"], moodScore: 0.6 });
-  const [suggestions, setSuggestions] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [mood, setMood] = useState(() => InsightEngine.inferMood());
-
-  // initial load
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const p = await mockDB.fetchPosts();
-      if (!mounted) return;
-      setPosts(p);
-      setSuggestions(InsightEngine.suggestTopics(6));
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  // record mood when it changes
-  useEffect(() => {
-    InsightEngine.recordMood(mood);
-  }, [mood]);
-
-  const handleCreate = (newPost) => setPosts((prev) => [newPost, ...prev]);
-
-  const handleLike = async (id) => {
-    await mockDB.likePost(id);
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likes: p.likes + 1 } : p)));
-  };
-
-  const handleSend = async (text) => {
-    const m = await mockDB.sendMessage(user.name, "Ava", text);
-    setMessages((prev) => [...prev, m]);
-  };
-
-  const toggleMood = () => setMood((cur) => (cur > 0.6 ? 0.3 : 0.8));
-
-  const uiTone = mood > 0.65 ? "energetic" : mood < 0.4 ? "calm" : "balanced";
-
-  const containerMotion = {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    transition: { duration: 0.45, ease: "easeOut" },
-  };
-
-  return (
-    <motion.div {...containerMotion} className="min-h-screen p-3 md:p-6 bg-gradient-to-br from-[#fbfdff] to-[#f8f7ff] text-slate-800">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="md:col-span-4">
-          <Header moodValue={mood} onToggle={toggleMood} />
-        </div>
-
-        <div className="md:col-span-1 order-2 md:order-1">
-          <ProfileCard user={user} suggestedTopics={suggestions} />
-        </div>
-
-        <main className="md:col-span-2 order-1 md:order-2">
-          <div className="space-y-3">
-            <Composer onCreate={handleCreate} suggestedTopics={suggestions} />
-
-            <motion.div className={`p-3 rounded-2xl ${THEME.colors.card} shadow-sm`} layout>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-semibold">Insight Engine</div>
-                  <div className="text-xs text-slate-500">Learns from your actions and suggests connections.</div>
-                </div>
-                <div className="text-xs">Tone: {uiTone}</div>
-              </div>
-
-              <div className="mt-2 text-xs text-slate-600">
-                Popular topics: {InsightEngine.suggestTopics(4).map((t) => <span key={t} className="mr-2">#{t}</span>)}
-              </div>
-
-              <div className="mt-3 text-xs text-slate-500">
-                <div>Privacy-first local signals. Efficiency: component reuse, local cache, render optimization.</div>
-              </div>
-            </motion.div>
-
-            <Feed posts={posts} onLike={handleLike} />
-          </div>
-        </main>
-
-        <aside className="md:col-span-1 order-3 md:order-3">
-          <div className="space-y-3">
-            <MindChat messages={messages} onSend={handleSend} />
-
-            <motion.div className={`p-3 rounded-2xl ${THEME.colors.card} shadow-sm`}>
-              <div className="text-sm font-semibold">Connections</div>
-              <div className="mt-2 text-xs text-slate-600">Ava • Rui • plus 10</div>
-
-              <div className="mt-3 text-xs">
-                UI adapts to your state — when energetic, cards show stronger elevation and faster micro-animations.
-              </div>
-            </motion.div>
-          </div>
-        </aside>
-      </div>
-
-      <style>{`
-        /* Small visual tweak variable for adaptive elevation */
-        :root { --ml-elevation: ${uiTone === "energetic" ? "12" : uiTone === "calm" ? "2" : "6"}; }
-      `}</style>
-    </motion.div>
-  );
-}
+          <div className="mt-2 text-sm leading-relaxed
